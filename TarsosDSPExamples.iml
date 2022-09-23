@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="JAVA_MODULE" version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="true">
+    <exclude-output />
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/src/android" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/core" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/experimental" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/jvm" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/patcher" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/tests" isTestSource="true" />
+      <excludeFolder url="file://$MODULE_DIR$/src/android" />
+      <excludeFolder url="file://$MODULE_DIR$/src/patcher" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="library" name="lib" level="project" />
+  </component>
+</module>

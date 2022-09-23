@@ -55,8 +55,8 @@ out/
 .classpath
 .project
 .settings/
-.idea/
-*.iml
+#.idea/
+#*.iml
 *.iws
 .DS_Store
 log/
