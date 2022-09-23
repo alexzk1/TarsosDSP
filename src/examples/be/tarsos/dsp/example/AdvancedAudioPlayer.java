@@ -30,7 +30,7 @@ import java.io.Serial;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
+
 
 import javax.swing.JButton;
 import javax.swing.JComponent;
@@ -58,6 +58,8 @@ public class AdvancedAudioPlayer extends JFrame {
     @Serial
     private static final long serialVersionUID = -4000269621209901229L;
 
+    private final static double slider_total_units = 1000.0;
+
     private JSlider gainSlider;
     private JSlider tempoSlider;
     private JSlider positionSlider;
@@ -70,29 +72,25 @@ public class AdvancedAudioPlayer extends JFrame {
 
     private JFileChooser fileChooser;
 
-    //position value in the slider
-    private int newPositionValue = 0;
 
-    private void setPosSlider(final boolean ignore_rewind, final double progress) {
+    private void setPosSlider(final double progress) {
         //enforcing to gui thread
         EventQueue.invokeLater(() -> {
-            if (ignore_rewind || !positionSlider.getValueIsAdjusting()) {
-                final int v = (int) (progress * 1000);
+            if (!positionSlider.getValueIsAdjusting()) {
+                final int v = (int) (progress * slider_total_units);
                 positionSlider.setValue(v);
-                newPositionValue = v;
             }
         });
     }
 
-    private void setPosSlider(final boolean ignore_rewind, final double progress, final double timeStamp) {
+    private void setPosSlider(final double progress, final double timeStamp) {
         //enforcing to gui thread
         EventQueue.invokeLater(() -> {
-            if (ignore_rewind || !positionSlider.getValueIsAdjusting()) {
-                final int v = (int) (progress * 1000);
+            if (!positionSlider.getValueIsAdjusting()) {
+                final int v = (int) (progress * slider_total_units);
                 positionSlider.setValue(v);
-                newPositionValue = v;
+                showTimestamp(timeStamp);
             }
-            showTimestamp(timeStamp);
         });
     }
 
@@ -111,7 +109,7 @@ public class AdvancedAudioPlayer extends JFrame {
         public boolean process(final AudioEvent audioEvent) {
             final double timeStamp = audioEvent.getTimeStamp();
             final double progress = (double) audioEvent.framesProcessed() / (double) player.getTotalFrames();
-            setPosSlider(false, progress, timeStamp);
+            setPosSlider(progress, timeStamp);
             return true;
         }
 
@@ -157,11 +155,11 @@ public class AdvancedAudioPlayer extends JFrame {
         stopButton.setEnabled(newState == PlayerState.PLAYING || newState == PlayerState.PAUZED);
 
         if (newState == PlayerState.STOPPED || newState == PlayerState.FILE_LOADED) {
-            setPosSlider(true, 0, 0);
+            setPosSlider( 0, 0);
         }
     }
 
-    public String formattedToString(double seconds) {
+    public String formattedToString(final double seconds) {
         final int minutes = (int) (seconds / 60);
         final int completeSeconds = (int) seconds - (minutes * 60);
         final int hundred = (int) ((seconds - (int) seconds) * 100);
@@ -169,35 +167,18 @@ public class AdvancedAudioPlayer extends JFrame {
     }
 
     private JComponent createProgressPanel() {
-        positionSlider = new JSlider(0, 1000);
+        positionSlider = new JSlider(0, (int) slider_total_units);
         positionSlider.setValue(0);
         positionSlider.setPaintLabels(false);
         positionSlider.setPaintTicks(false);
         positionSlider.setEnabled(false);
-//		positionSlider.addChangeListener(arg0 -> {
-//			if (newPositionValue != positionSlider.getValue()) {
-//				final double progress = positionSlider.getValue() / 1000.0;
-//				final double timeStamp = player.getDurationInSeconds() * progress;
-//
-//				if (positionSlider.getValueIsAdjusting()) {
-//					showTimestamp(timeStamp);
-//				} else {
-//					final PlayerState currentState = player.getState();
-//					player.pauze(timeStamp);
-//					setPosSlider(true, progress, timeStamp);
-//					if(currentState == PlayerState.PLAYING){
-//						player.play();
-//					}
-//				}
-//			}
-//		});
 
         positionSlider.addChangeListener(new ChangeListener() {
             private int currentHappening = 0;
 
             @Override
             public void stateChanged(ChangeEvent changeEvent) {
-                final double progress = positionSlider.getValue() / 1000.0;
+                final double progress = positionSlider.getValue() / slider_total_units;
                 final double timeStamp = player.getDurationInSeconds() * progress;
                 if (positionSlider.getValueIsAdjusting()) {
                     currentHappening = 1;
@@ -207,7 +188,6 @@ public class AdvancedAudioPlayer extends JFrame {
                         currentHappening = 0;
                         final PlayerState currentState = player.getState();
                         player.pauze(timeStamp);
-                        setPosSlider(true, progress, timeStamp);
                         if (currentState == PlayerState.PLAYING) {
                             player.play();
                         }
@@ -293,7 +273,7 @@ public class AdvancedAudioPlayer extends JFrame {
         return fileChooserPanel;
     }
 
-    private void setProgressLabelText(double current, double max) {
+    private void setProgressLabelText(final double current, final double max) {
         progressLabel.setText(formattedToString(current));
         totalLabel.setText(formattedToString(max));
     }
