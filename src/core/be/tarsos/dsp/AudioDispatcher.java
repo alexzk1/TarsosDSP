@@ -27,6 +27,7 @@ package be.tarsos.dsp;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -117,7 +118,7 @@ public class AudioDispatcher implements Runnable {
 	/**
 	 * If true the dispatcher stops dispatching audio.
 	 */
-	private boolean stopped;
+	private final AtomicBoolean stopped = new AtomicBoolean(false);
 	
 	/**
 	 * If true then the first buffer is only filled up to buffer size - hop size
@@ -164,7 +165,7 @@ public class AudioDispatcher implements Runnable {
 		
 		converter = TarsosDSPAudioFloatConverter.getConverter(format);
 		
-		stopped = false;
+		stopped.set(false);
 		
 		bytesToSkip = 0;
 		
@@ -265,9 +266,19 @@ public class AudioDispatcher implements Runnable {
 		}
 
 		// As long as the stream has not ended
-		while (bytesRead != 0 && !stopped) {
+		while (bytesRead > 0 && !stopped.get()) {
 			
 			//Makes sure the right buffers are processed, they can be changed by audio processors.
+
+			//FIXME Alex, year 2022:
+			//1. this will create 4-8 bytes Object pointer on each loop iteration that will trigger GC
+			//prefer indexed access
+
+			//2. real "removing" processor does not look correct in multi-thread, I would say
+			//that is not trivial task and deserves own class to handle that
+
+			//I had similar code and solution of those problems in my Usb-Radio work like 7 years ago.
+
 			for (final AudioProcessor processor : audioProcessors) {
 				if(!processor.process(audioEvent)){
 					//skip to the next audio processors if false is returned.
@@ -275,7 +286,7 @@ public class AudioDispatcher implements Runnable {
 				}	
 			}
 			
-			if(!stopped){			
+			if(!stopped.get()){
 				//Update the number of bytes processed;
 				bytesProcessed += bytesRead;
 				audioEvent.setBytesProcessed(bytesProcessed);
@@ -296,7 +307,7 @@ public class AudioDispatcher implements Runnable {
 		// Notify all processors that no more data is available. 
 		// when stop() is called processingFinished is called explicitly, no need to do this again.
 		// The explicit call is to prevent timing issues.
-		if(!stopped){
+		if(!stopped.get()){
 			stop();
 		}
 	}
@@ -321,7 +332,7 @@ public class AudioDispatcher implements Runnable {
 	 * Stops dispatching audio data.
 	 */
 	public void stop() {
-		stopped = true;
+		stopped.set(true);
 		for (final AudioProcessor processor : audioProcessors) {
 			processor.processingFinished();
 		}
@@ -386,21 +397,20 @@ public class AudioDispatcher implements Runnable {
 		// Total amount of bytes read
 		int totalBytesRead = 0;
 		
-		// The amount of bytes read from the stream during one iteration.
-		int bytesRead=0;
-		
+
 		// Is the end of the stream reached?
 		boolean endOfStream = false;
 				
 		// Always try to read the 'bytesToRead' amount of bytes.
 		// unless the stream is closed (stopped is true) or no bytes could be read during one iteration 
-		while(!stopped && !endOfStream && totalBytesRead<bytesToRead){
+		while(!stopped.get() && !endOfStream && totalBytesRead<bytesToRead){
+			// The amount of bytes read from the stream during one iteration.
+			int bytesRead = -1;
 			try{
 				bytesRead = audioInputStream.read(audioByteBuffer, offsetInBytes + totalBytesRead , bytesToRead - totalBytesRead);
-			}catch(IndexOutOfBoundsException e){
+			}catch(IndexOutOfBoundsException ignored){
 				// The pipe decoder generates an out of bounds if end
 				// of stream is reached. Ugly hack...
-				bytesRead = -1;
 			}
 			if(bytesRead == -1){
 				// The end of the stream is reached if the number of bytes read during this iteration equals -1
@@ -421,16 +431,12 @@ public class AudioDispatcher implements Runnable {
 				converter.toFloatArray(audioByteBuffer, offsetInBytes, audioFloatBuffer, offsetInSamples, floatStepSize);
 			}else{
 				// Send a smaller buffer through the chain.
-				byte[] audioByteBufferContent = audioByteBuffer;
+				final byte[] audioByteBufferContent = audioByteBuffer;
 				audioByteBuffer = new byte[offsetInBytes + totalBytesRead];
-				for(int i = 0 ; i < audioByteBuffer.length ; i++){
-					audioByteBuffer[i] = audioByteBufferContent[i];
-				}
-				int totalSamplesRead = totalBytesRead/format.getFrameSize();
-				audioFloatBuffer = new float[offsetInSamples + totalBytesRead/format.getFrameSize()];
+				System.arraycopy(audioByteBufferContent, 0, audioByteBuffer, 0, audioByteBuffer.length);
+				final int totalSamplesRead = totalBytesRead/format.getFrameSize();
+				audioFloatBuffer = new float[offsetInSamples + totalSamplesRead];
 				converter.toFloatArray(audioByteBuffer, offsetInBytes, audioFloatBuffer, offsetInSamples, totalSamplesRead);
-				
-				
 			}			
 		}else if(bytesToRead == totalBytesRead) {
 			// The expected amount of bytes have been read from the stream.
@@ -439,7 +445,7 @@ public class AudioDispatcher implements Runnable {
 			}else{
 				converter.toFloatArray(audioByteBuffer, offsetInBytes, audioFloatBuffer, offsetInSamples, floatStepSize);
 			}
-		} else if(!stopped) {
+		} else if(!stopped.get()) {
 			// If the end of the stream has not been reached and the number of bytes read is not the
 			// expected amount of bytes, then we are in an invalid state; 
 			throw new IOException(String.format("The end of the audio stream has not been reached and the number of bytes read (%d) is not equal "
@@ -473,7 +479,7 @@ public class AudioDispatcher implements Runnable {
 	 * @return True if the dispatcher is stopped or the end of stream has been reached.
 	 */
 	public boolean isStopped(){
-		return stopped;
+		return stopped.get();
 	}
 	
 }

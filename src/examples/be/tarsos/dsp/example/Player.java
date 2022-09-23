@@ -54,12 +54,16 @@ public class Player implements AudioProcessor {
 	private GainProcessor gainProcessor;
 	private AudioPlayer audioPlayer;
 	private WaveformSimilarityBasedOverlapAdd wsola;
-	private AudioDispatcher dispatcher;
-	
-	private double durationInSeconds;
-	private double currentTime;
-	private double pauzedAt;
-	
+	private AudioDispatcher dispatcher = null;
+
+	private Thread audioThread = null;
+
+	private double durationInSeconds = 0.0;
+	private double currentTime = 0.0;
+	private double pauzedAt= 0.0;
+
+	private int totalFrames = 0;
+
 	private final AudioProcessor beforeWSOLAProcessor;
 	private final AudioProcessor afterWSOLAProcessor;
 	
@@ -87,8 +91,8 @@ public class Player implements AudioProcessor {
 		} catch (UnsupportedAudioFileException | IOException e) {
 			throw new Error(e);
 		}
-		AudioFormat format = fileFormat.getFormat();
-		durationInSeconds = fileFormat.getFrameLength() / format.getFrameRate();
+		final AudioFormat format = fileFormat.getFormat();
+		durationInSeconds = (totalFrames = fileFormat.getFrameLength()) / format.getFrameRate();
 		pauzedAt = 0;
 		currentTime = 0;
 		setState(PlayerState.FILE_LOADED);
@@ -103,11 +107,10 @@ public class Player implements AudioProcessor {
 	public void play(){
 		if(state == PlayerState.NO_FILE_LOADED){
 			throw new IllegalStateException("Can not play when no file is loaded");
-		} else if(state == PlayerState.PAUZED) {
-			play(pauzedAt);
-		} else {
-			play(0);
+		} else if(state != PlayerState.PAUZED) {
+			pauzedAt = 0.;
 		}
+		play(pauzedAt);
 	}
 	
 	public void play(double startTime) {
@@ -136,8 +139,8 @@ public class Player implements AudioProcessor {
 				
 				dispatcher.addAudioProcessor(audioPlayer);
 
-				Thread t = new Thread(dispatcher,"Audio Player Thread");
-				t.start();
+				audioThread = new Thread(dispatcher,"Audio Player Thread");
+				audioThread.start();
 				setState(PlayerState.PLAYING);
 			} catch (UnsupportedAudioFileException | IOException | LineUnavailableException e) {
 				throw new Error(e);
@@ -163,6 +166,9 @@ public class Player implements AudioProcessor {
 		if(state == PlayerState.PLAYING || state == PlayerState.PAUZED){
 			setState(PlayerState.STOPPED);
 			dispatcher.stop();
+			audioThread.interrupt();
+			audioThread = null;
+			dispatcher = null;
 		} else if(state != PlayerState.STOPPED){
 			throw new IllegalStateException("Can not stop when nothing is playing");
 		}
@@ -185,9 +191,16 @@ public class Player implements AudioProcessor {
 	
 	public double getDurationInSeconds() {
 		if(state == PlayerState.NO_FILE_LOADED){
-			throw new IllegalStateException("No file loaded, unable to determine the duration in seconds");
+			throw new IllegalStateException("No file loaded, unable to determine the duration in seconds.");
 		}
 		return durationInSeconds;
+	}
+
+	public int getTotalFrames() {
+		if(state == PlayerState.NO_FILE_LOADED){
+			throw new IllegalStateException("No file loaded, unable to determine the duration in frames.");
+		}
+		return totalFrames;
 	}
 
 	private void setState(PlayerState newState){

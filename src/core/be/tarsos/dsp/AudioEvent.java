@@ -109,11 +109,11 @@ public class AudioEvent {
 	 * @return The time stamp at the beginning of the event in seconds.
 	 */
 	public double getTimeStamp(){
-		return bytesProcessed / format.getFrameSize() / format.getSampleRate();
+		return (double)bytesProcessed / (double)format.getFrameSize() / (double)format.getSampleRate();
 	}
 	
 	public double getEndTimeStamp(){
-		return(bytesProcessed + bytesProcessing) / format.getFrameSize() / format.getSampleRate();
+		return(bytesProcessed + bytesProcessing) / (double)format.getFrameSize() / (double)format.getSampleRate();
 	}
 	
 	public long getSamplesProcessed(){
@@ -127,9 +127,15 @@ public class AudioEvent {
 	 *         number of frames is not known beforehand.
 	 */
 	public double getProgress(){
-		return bytesProcessed / format.getFrameSize() / (double) frameLength;
+		return 0; //FIXME:Alex, 2022, this is broken thing as frameLength variable is never set by original author
+		//return bytesProcessed / format.getFrameSize() / (double) frameLength;
 	}
-	
+
+	public final long framesProcessed()
+	{
+		return bytesProcessed / format.getFrameSize();
+	}
+
 	/**
 	 * Return a byte array with the audio data in bytes.
 	 *  A conversion is done from float, cache accordingly on the other side...
