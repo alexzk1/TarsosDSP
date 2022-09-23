@@ -27,13 +27,11 @@ package be.tarsos.dsp.example;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.GridLayout;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
 import java.io.File;
+import java.io.Serial;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Locale;
+import java.util.Objects;
 
 import javax.swing.JButton;
 import javax.swing.JComponent;
@@ -45,8 +43,6 @@ import javax.swing.JSlider;
 import javax.swing.JSplitPane;
 import javax.swing.SwingUtilities;
 import javax.swing.border.TitledBorder;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
 
 import be.tarsos.dsp.AudioEvent;
 import be.tarsos.dsp.AudioProcessor;
@@ -58,6 +54,7 @@ public class AdvancedAudioPlayer extends JFrame {
 	/**
 	 * 
 	 */
+	@Serial
 	private static final long serialVersionUID = -4000269621209901229L;
 	
 	private JSlider gainSlider;
@@ -115,13 +112,10 @@ public class AdvancedAudioPlayer extends JFrame {
 		this.add(new JSplitPane(JSplitPane.VERTICAL_SPLIT, subPanel, createSpectrogramPanel()));
 		
 		player = new Player(processor,fftProcessor);
-		player.addPropertyChangeListener(new PropertyChangeListener() {
-			@Override
-			public void propertyChange(PropertyChangeEvent arg0) {
-				if(arg0.getPropertyName()=="state"){
-					PlayerState newState = (PlayerState) arg0.getNewValue();
-					reactToPlayerState(newState);
-				}
+		player.addPropertyChangeListener(arg0 -> {
+			if(Objects.equals(arg0.getPropertyName(), "state")){
+				PlayerState newState = (PlayerState) arg0.getNewValue();
+				reactToPlayerState(newState);
 			}
 		});
 		reactToPlayerState(player.getState());
@@ -132,10 +126,11 @@ public class AdvancedAudioPlayer extends JFrame {
 	}
 
 	private void reactToPlayerState(PlayerState newState){
-		positionSlider.setEnabled(newState != PlayerState.NO_FILE_LOADED);
-		playButton.setEnabled(newState != PlayerState.PLAYING && newState != PlayerState.NO_FILE_LOADED);
-		pauzeButton.setEnabled(newState == PlayerState.PLAYING && newState != PlayerState.NO_FILE_LOADED );
-		stopButton.setEnabled((newState == PlayerState.PLAYING || newState == PlayerState.PAUZED) && newState != PlayerState.NO_FILE_LOADED);
+		final boolean loaded = newState != PlayerState.NO_FILE_LOADED;
+		positionSlider.setEnabled(loaded);
+		playButton.setEnabled(newState != PlayerState.PLAYING && loaded);
+		pauzeButton.setEnabled(newState == PlayerState.PLAYING);
+		stopButton.setEnabled(newState == PlayerState.PLAYING || newState == PlayerState.PAUZED);
 		
 		if(newState == PlayerState.STOPPED || newState == PlayerState.FILE_LOADED){
 			newPositionValue = 0;
@@ -157,21 +152,17 @@ public class AdvancedAudioPlayer extends JFrame {
 		positionSlider.setPaintLabels(false);
 		positionSlider.setPaintTicks(false);
 		positionSlider.setEnabled(false);
-		positionSlider.addChangeListener(new ChangeListener() {
-			@Override
-			public void stateChanged(ChangeEvent arg0) {				
-				if (newPositionValue != positionSlider.getValue()) {
-					double promille = positionSlider.getValue() / 1000.0;
-					double currentPosition = player.getDurationInSeconds() * promille;
-					if (positionSlider.getValueIsAdjusting()) {
-						setProgressLabelText(currentPosition, player.getDurationInSeconds());
-					} else {
-						double secondsToSkip = currentPosition;
-						PlayerState currentState = player.getState();
-						player.pauze(secondsToSkip);
-						if(currentState == PlayerState.PLAYING){
-							player.play();							
-						}
+		positionSlider.addChangeListener(arg0 -> {
+			if (newPositionValue != positionSlider.getValue()) {
+				final double promille = positionSlider.getValue() / 1000.0;
+				final double currentPosition = player.getDurationInSeconds() * promille;
+				if (positionSlider.getValueIsAdjusting()) {
+					setProgressLabelText(currentPosition, player.getDurationInSeconds());
+				} else {
+					PlayerState currentState = player.getState();
+					player.pauze(currentPosition);
+					if(currentState == PlayerState.PLAYING){
+						player.play();
 					}
 				}
 			}
@@ -203,13 +194,10 @@ public class AdvancedAudioPlayer extends JFrame {
 		tempoSlider.setValue(100);
 		final JLabel label = new JLabel("Tempo: 100%");
 		tempoSlider.setPaintLabels(true);
-		tempoSlider.addChangeListener(new ChangeListener() {
-			@Override
-			public void stateChanged(ChangeEvent arg0) {
-				double newTempo = tempoSlider.getValue()/100.0;
-				label.setText(String.format("Tempo: %3d",  tempoSlider.getValue())+"%");
-				player.setTempo(newTempo);
-			}
+		tempoSlider.addChangeListener(arg0 -> {
+			double newTempo = tempoSlider.getValue()/100.0;
+			label.setText(String.format("Tempo: %3d",  tempoSlider.getValue())+"%");
+			player.setTempo(newTempo);
 		});
 		
 		JPanel panel = new JPanel(new BorderLayout());
@@ -228,49 +216,30 @@ public class AdvancedAudioPlayer extends JFrame {
 		fileChooser = new JFileChooser();
 		
 		final JButton chooseFileButton = new JButton("Open...");
-		chooseFileButton.addActionListener(new ActionListener(){
-			@Override
-			public void actionPerformed(ActionEvent arg0) {
-				int returnVal = fileChooser.showOpenDialog(AdvancedAudioPlayer.this);
-	            if (returnVal == JFileChooser.APPROVE_OPTION) {
-	                File file = fileChooser.getSelectedFile();
-	                PlayerState currentState = player.getState();
-	                player.load(file);
-	                if(currentState == PlayerState.NO_FILE_LOADED || currentState == PlayerState.PLAYING){
-	                	player.play();
-	                }
-	            } else {
-	                //canceled
-	            }
-			}			
+		chooseFileButton.addActionListener(arg0 -> {
+			int returnVal = fileChooser.showOpenDialog(AdvancedAudioPlayer.this);
+			if (returnVal == JFileChooser.APPROVE_OPTION) {
+				File file = fileChooser.getSelectedFile();
+				PlayerState currentState = player.getState();
+				player.load(file);
+				if(currentState == PlayerState.NO_FILE_LOADED || currentState == PlayerState.PLAYING){
+					player.play();
+				}
+			}  //canceled
+
 		});
 		fileChooserPanel.add(chooseFileButton);
 		
 		stopButton = new JButton("Stop");
 		fileChooserPanel.add(stopButton);
-		stopButton.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(ActionEvent arg0) {
-				player.stop();
-			}
-		});
+		stopButton.addActionListener(arg0 -> player.stop());
 		
 		playButton = new JButton("Play");
-		playButton.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(ActionEvent arg0) {
-				player.play();
-			}
-		});
+		playButton.addActionListener(arg0 -> player.play());
 		fileChooserPanel.add(playButton);		
 		
 		pauzeButton = new JButton("Pauze");
-		pauzeButton.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(ActionEvent arg0) {
-				player.pauze();
-			}
-		});
+		pauzeButton.addActionListener(arg0 -> player.pauze());
 		fileChooserPanel.add(pauzeButton);
 		
 		return fileChooserPanel;
@@ -287,13 +256,10 @@ public class AdvancedAudioPlayer extends JFrame {
 		gainSlider.setPaintLabels(true);
 		gainSlider.setPaintTicks(true);
 		final JLabel label = new JLabel("Gain: 100%");
-		gainSlider.addChangeListener(new ChangeListener() {
-			@Override
-			public void stateChanged(ChangeEvent arg0) {
-				double gainValue = gainSlider.getValue() / 100.0;
-				label.setText(String.format("Gain: %3d", gainSlider.getValue())+"%");
-				player.setGain(gainValue);
-			}
+		gainSlider.addChangeListener(arg0 -> {
+			double gainValue = gainSlider.getValue() / 100.0;
+			label.setText(String.format("Gain: %3d", gainSlider.getValue())+"%");
+			player.setGain(gainValue);
 		});
 		
 		JPanel gainPanel = new JPanel(new BorderLayout());
@@ -316,9 +282,9 @@ public class AdvancedAudioPlayer extends JFrame {
 
 		@Override
 		public boolean process(AudioEvent audioEvent) {
-			float[] audioFloatBuffer = audioEvent.getFloatBuffer();
-			int bufferSize = audioFloatBuffer.length; 
-			float[] transformbuffer = new float[bufferSize*2];
+			final float[] audioFloatBuffer = audioEvent.getFloatBuffer();
+			final int bufferSize = audioFloatBuffer.length;
+			final float[] transformbuffer = new float[bufferSize*2];
 			if(prevSize != bufferSize){
 				fft = new FFT(bufferSize);
 				amplitudes = new float[bufferSize/2];
@@ -335,14 +301,11 @@ public class AdvancedAudioPlayer extends JFrame {
 	
 	
 	public static void main(String... args) throws InterruptedException, InvocationTargetException {
-		SwingUtilities.invokeAndWait(new Runnable() {
-			@Override
-			public void run() {
-				JFrame frame = new AdvancedAudioPlayer();
-				frame.pack();
-				frame.setSize(450,650);
-				frame.setVisible(true);
-			}
+		SwingUtilities.invokeAndWait(() -> {
+			JFrame frame = new AdvancedAudioPlayer();
+			frame.pack();
+			frame.setSize(450,650);
+			frame.setVisible(true);
 		});
 	}
 }

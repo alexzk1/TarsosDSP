@@ -47,7 +47,7 @@ import be.tarsos.dsp.io.jvm.AudioPlayer;
 public class Player implements AudioProcessor {
 	
 
-	private PropertyChangeSupport support = new PropertyChangeSupport(this);
+	private final PropertyChangeSupport support = new PropertyChangeSupport(this);
 	
 	private PlayerState state;
 	private File loadedFile;
@@ -84,9 +84,7 @@ public class Player implements AudioProcessor {
 		AudioFileFormat fileFormat;
 		try {
 			fileFormat = AudioSystem.getAudioFileFormat(loadedFile);
-		} catch (UnsupportedAudioFileException e) {
-			throw new Error(e);
-		} catch (IOException e) {
+		} catch (UnsupportedAudioFileException | IOException e) {
 			throw new Error(e);
 		}
 		AudioFormat format = fileFormat.getFormat();
@@ -141,11 +139,7 @@ public class Player implements AudioProcessor {
 				Thread t = new Thread(dispatcher,"Audio Player Thread");
 				t.start();
 				setState(PlayerState.PLAYING);
-			} catch (UnsupportedAudioFileException e) {
-				throw new Error(e);
-			} catch (IOException e) {
-				throw new Error(e);
-			} catch (LineUnavailableException e) {
+			} catch (UnsupportedAudioFileException | IOException | LineUnavailableException e) {
 				throw new Error(e);
 			}
 		}
