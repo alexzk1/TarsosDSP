@@ -1,4 +1,4 @@
-package be.tarsos.dsp.experimental;
+package be.tarsos.dsp.test;
 
 import static org.junit.Assert.*;
 
@@ -9,6 +9,9 @@ import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.UnsupportedAudioFileException;
 
+import be.tarsos.dsp.experimental.AudioDispatcher;
+import be.tarsos.dsp.experimental.AudioEvent;
+import be.tarsos.dsp.experimental.AudioProcessor;
 import org.junit.Test;
 
 import be.tarsos.dsp.io.TarsosDSPAudioInputStream;

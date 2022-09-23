@@ -1,4 +1,4 @@
-package be.tarsos.dsp.experimental;
+package be.tarsos.dsp.test;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -7,7 +7,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.sun.org.apache.xml.internal.resolver.helpers.FileURL;
+//import com.sun.org.apache.xml.internal.resolver.helpers.FileURL;
 
 import be.tarsos.dsp.onsets.ComplexOnsetDetector;
 import be.tarsos.dsp.onsets.OnsetHandler;
