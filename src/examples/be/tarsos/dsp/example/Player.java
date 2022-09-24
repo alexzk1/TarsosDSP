@@ -134,10 +134,11 @@ public class Player implements AudioProcessor {
 				dispatcher.skip(startTime);
 
 				dispatcher.addAudioProcessor(this);
+				dispatcher.addAudioProcessor(gainProcessor);
 				dispatcher.addAudioProcessor(beforeWSOLAProcessor);
 				dispatcher.addAudioProcessor(wsola);
 				dispatcher.addAudioProcessor(afterWSOLAProcessor);
-				dispatcher.addAudioProcessor(gainProcessor);
+
 
 
 				//dispatcher.addAudioProcessor(audioPlayer);

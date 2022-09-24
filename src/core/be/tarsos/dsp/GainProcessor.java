@@ -34,14 +34,22 @@ package be.tarsos.dsp;
  * @author Joren Six
  */
 public class GainProcessor implements AudioProcessor {
-	private volatile double gain;
+	private volatile float gain;
 	
+	public GainProcessor(float newGain) {
+		setGain(newGain);
+	}
+
 	public GainProcessor(double newGain) {
 		setGain(newGain);
 	}
 
-	public void setGain(double newGain) {
+	public void setGain(float newGain) {
 		this.gain = newGain;
+	}
+
+	public void setGain(double newGain) {
+		this.gain = (float)newGain;
 	}
 
 	@Override

@@ -11,7 +11,7 @@ public class FadeIn implements AudioProcessor
 	private double duration;
 	private double firstTime=-1;
 	private double time;
-	private GainProcessor gp=new GainProcessor(0.1);
+	private GainProcessor gp=new GainProcessor(0.1f);
 	private boolean fadingIn=true;
 	
 	// METHODS
