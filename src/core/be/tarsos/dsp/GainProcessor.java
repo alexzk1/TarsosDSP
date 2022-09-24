@@ -34,7 +34,7 @@ package be.tarsos.dsp;
  * @author Joren Six
  */
 public class GainProcessor implements AudioProcessor {
-	private double gain;
+	private volatile double gain;
 	
 	public GainProcessor(double newGain) {
 		setGain(newGain);
@@ -46,15 +46,10 @@ public class GainProcessor implements AudioProcessor {
 
 	@Override
 	public boolean process(AudioEvent audioEvent) {
-		float[] audioFloatBuffer = audioEvent.getFloatBuffer();
-		for (int i = audioEvent.getOverlap(); i < audioFloatBuffer.length ; i++) {
-			float newValue = (float) (audioFloatBuffer[i] * gain);
-			if(newValue > 1.0f) {
-				newValue = 1.0f;
-			} else if(newValue < -1.0f) {
-				newValue = -1.0f;
-			}
-			audioFloatBuffer[i] = newValue;
+		final float[] audioFloatBuffer = audioEvent.getFloatBuffer();
+		for (int i = audioEvent.getOverlap() * audioEvent.getChannelsPerSample(); i < audioFloatBuffer.length ; ++i) {
+			final float newValue = (float) (audioFloatBuffer[i] * gain);
+			audioFloatBuffer[i] = Math.max(-1.f, Math.min(1.f, newValue));
 		}
 		return true;
 	}

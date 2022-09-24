@@ -63,11 +63,14 @@ public class WaveformSimilarityBasedOverlapAdd implements AudioProcessor
     private int intskip = 0;
     private int sampleReq = 0;
 
-    private AudioDispatcher dispatcher = null;
+    private volatile AudioDispatcher dispatcher = null;
 
-    private Parameters newParameters = null;
+    private volatile Parameters newParameters = null;
 
     private final int channelsPerSample;
+
+    private final Object paramsMutex = new Object();
+
 
     /**
      * Create a new instance based on algorithm parameters for a certain audio format.
@@ -112,34 +115,37 @@ public class WaveformSimilarityBasedOverlapAdd implements AudioProcessor
 
     private void applyNewParameters()
     {
-        final Parameters params = newParameters;
-        int oldOverlapLength = overlapLength;
-        //measured in SAMPLES
-        overlapLength = (int) ((params.getSampleRate() * params.getOverlapMs()) / 1000);
-        seekWindowLength = (int) ((params.getSampleRate() * params.getSequenceMs()) / 1000);
-        seekLength = (int) ((params.getSampleRate() * params.getSeekWindowMs()) / 1000);
+       synchronized (paramsMutex)
+       {
+           final Parameters params = newParameters;
+           int oldOverlapLength = overlapLength;
+           //measured in SAMPLES
+           overlapLength = (int) ((params.getSampleRate() * params.getOverlapMs()) / 1000);
+           seekWindowLength = (int) ((params.getSampleRate() * params.getSequenceMs()) / 1000);
+           seekLength = (int) ((params.getSampleRate() * params.getSeekWindowMs()) / 1000);
 
-        if (overlapLength > oldOverlapLength * channelsPerSample && pMidBuffer == null)
-        {
-            pMidBuffer = new float[overlapLength * channelsPerSample];
-            pRefMidBuffer = new float[pMidBuffer.length];
-            System.out.println("New overlapLength (in samples): " + overlapLength);
-        }
+           if (overlapLength > oldOverlapLength * channelsPerSample && pMidBuffer == null)
+           {
+               pMidBuffer = new float[(overlapLength + 1) * channelsPerSample];
+               pRefMidBuffer = new float[pMidBuffer.length];
+               System.out.println("New overlapLength (in samples): " + overlapLength);
+           }
 
-        final double nominalSkip = params.getTempo() * (seekWindowLength - overlapLength);
-        intskip = (int) (nominalSkip + 0.5);
+           final double nominalSkip = params.getTempo() * (seekWindowLength - overlapLength);
+           intskip = (int) (nominalSkip + 0.5);
 
-        sampleReq = Math.max(intskip + overlapLength, seekWindowLength) + seekLength;
+           sampleReq = Math.max(intskip + overlapLength, seekWindowLength) + seekLength;
 
-        final float[] prevOutputBuffer = outputFloatBuffer;
-        outputFloatBuffer = new float[getOutputBufferSize() * channelsPerSample];
-        if (prevOutputBuffer != null)
-        {
-            System.out.println("Copy outputFloatBuffer contents");
-            System.arraycopy(prevOutputBuffer, 0, outputFloatBuffer, 0, Math.min(outputFloatBuffer.length, prevOutputBuffer.length));
-        }
+           final float[] prevOutputBuffer = outputFloatBuffer;
+           outputFloatBuffer = new float[getOutputBufferSize() * channelsPerSample];
+           if (prevOutputBuffer != null)
+           {
+               System.out.println("Copy outputFloatBuffer contents");
+               System.arraycopy(prevOutputBuffer, 0, outputFloatBuffer, 0, Math.min(outputFloatBuffer.length, prevOutputBuffer.length));
+           }
 
-        newParameters = null;
+           newParameters = null;
+       }
     }
 
     //in SAMPLES!!!! (in array elements do * channelsCount)
@@ -192,7 +198,7 @@ public class WaveformSimilarityBasedOverlapAdd implements AudioProcessor
      * cross-correlation value over the overlapping period
      *
      * @param inputBuffer The input buffer
-     * @param position     The position where to start the seek operation, in the input buffer in SAMPLES.
+     * @param position    The position where to start the seek operation, in the input buffer in SAMPLES.
      * @return The best position.
      */
     private int seekBestOverlapPosition(float[] inputBuffer, int position)
@@ -244,7 +250,13 @@ public class WaveformSimilarityBasedOverlapAdd implements AudioProcessor
             final int off = sampleArrayOffset(i);
             final float temp = i * (overlapLength - i);
             for (int j = 0; j < channelsPerSample; ++j)
-                pRefMidBuffer[off + j] = pMidBuffer[off + j] * temp;
+            {
+                final int ofj = off + j;
+                if (ofj < pRefMidBuffer.length && ofj < pMidBuffer.length)
+                    pRefMidBuffer[ofj] = pMidBuffer[ofj] * temp;
+                else
+                    break;
+            }
         }
     }
 
@@ -264,7 +276,7 @@ public class WaveformSimilarityBasedOverlapAdd implements AudioProcessor
         double norm = 0;
         for (int i = 1; i < overlapLength; ++i)
         {
-            final double mono_mp  = monoSample(mixingPos, i);
+            final double mono_mp = monoSample(mixingPos, i);
             final double mono_cmp = monoSample(compare, i + offset);
             corr += mono_mp * mono_cmp;
             norm += mono_mp * mono_mp;
@@ -277,45 +289,48 @@ public class WaveformSimilarityBasedOverlapAdd implements AudioProcessor
         return corr / Math.pow(norm, 0.5);
     }
 
-    private void samplescopy(float [] src, int src_off, float[] dst, int dst_off, int len)
+    private void samplescopy(float[] src, int src_off, float[] dst, int dst_off, int len)
     {
         System.arraycopy(src, src_off * channelsPerSample, dst, dst_off * channelsPerSample, len * channelsPerSample);
     }
+
     @Override
     public boolean process(AudioEvent audioEvent)
     {
-        final float[] audioFloatBuffer = audioEvent.getFloatBuffer();
-        assert audioFloatBuffer.length == getInputBufferSize();
-
-        //Search for the best overlapping position. IN SAMPLES!!!
-        final int offset = seekBestOverlapPosition(audioFloatBuffer, 0);
-
-        // Mix the samples in the 'inputBuffer' at position of 'offset' with the
-        // samples in 'midBuffer' using sliding overlapping
-        // ... first partially overlap with the end of the previous sequence
-        // (that's in 'midBuffer')
-        overlap(outputFloatBuffer, 0, audioFloatBuffer, offset);
-
-        //copy sequence samples from input to output
-        final int sequenceLength = seekWindowLength - 2 * overlapLength;
-        samplescopy(audioFloatBuffer, offset + overlapLength, outputFloatBuffer, overlapLength, sequenceLength);
-
-        // Copies the end of the current sequence from 'inputBuffer' to
-        // 'midBuffer' for being mixed with the beginning of the next 
-        // processing sequence and so on
-        samplescopy(audioFloatBuffer, offset + sequenceLength + overlapLength, pMidBuffer, 0, overlapLength);
-
-        assert outputFloatBuffer.length == getOutputBufferSize();
-
-        audioEvent.setFloatBuffer(outputFloatBuffer);
-        audioEvent.setOverlap(0);
-
-        if (newParameters != null)
+        synchronized (paramsMutex)
         {
-            applyNewParameters();
-            dispatcher.setStepSizeAndOverlap(getInputBufferSize(), getOverlap());
-        }
+            final float[] audioFloatBuffer = audioEvent.getFloatBuffer();
+            assert audioFloatBuffer.length == getInputBufferSize();
 
+            //Search for the best overlapping position. IN SAMPLES!!!
+            final int offset = seekBestOverlapPosition(audioFloatBuffer, 0);
+
+            // Mix the samples in the 'inputBuffer' at position of 'offset' with the
+            // samples in 'midBuffer' using sliding overlapping
+            // ... first partially overlap with the end of the previous sequence
+            // (that's in 'midBuffer')
+            overlap(outputFloatBuffer, 0, audioFloatBuffer, offset);
+
+            //copy sequence samples from input to output
+            final int sequenceLength = seekWindowLength - 2 * overlapLength;
+            samplescopy(audioFloatBuffer, offset + overlapLength, outputFloatBuffer, overlapLength, sequenceLength);
+
+            // Copies the end of the current sequence from 'inputBuffer' to
+            // 'midBuffer' for being mixed with the beginning of the next
+            // processing sequence and so on
+            samplescopy(audioFloatBuffer, offset + sequenceLength + overlapLength, pMidBuffer, 0, overlapLength);
+
+            assert outputFloatBuffer.length == getOutputBufferSize();
+
+            audioEvent.setFloatBuffer(outputFloatBuffer);
+            audioEvent.setOverlap(0);
+
+            if (newParameters != null)
+            {
+                applyNewParameters();
+                dispatcher.setStepSizeAndOverlap(getInputBufferSize(), getOverlap());
+            }
+        }
         return true;
     }
 

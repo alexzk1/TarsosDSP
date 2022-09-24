@@ -223,7 +223,7 @@ public class AdvancedAudioPlayer extends JFrame {
         final JLabel label = new JLabel("Tempo: 100%");
         tempoSlider.setPaintLabels(true);
         tempoSlider.addChangeListener(arg0 -> {
-            double newTempo = tempoSlider.getValue() / 100.0;
+            final double newTempo = tempoSlider.getValue() / 100.0;
             label.setText(String.format("Tempo: %3d", tempoSlider.getValue()) + "%");
             player.setTempo(newTempo);
         });

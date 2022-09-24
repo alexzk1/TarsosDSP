@@ -52,7 +52,7 @@ public class Player implements AudioProcessor {
 	private PlayerState state;
 	private File loadedFile;
 	private GainProcessor gainProcessor;
-	private AudioPlayer audioPlayer;
+
 	private WaveformSimilarityBasedOverlapAdd wsola;
 	private AudioDispatcher dispatcher = null;
 
@@ -67,8 +67,8 @@ public class Player implements AudioProcessor {
 	private final AudioProcessor beforeWSOLAProcessor;
 	private final AudioProcessor afterWSOLAProcessor;
 	
-	private double gain;
-	private double tempo;
+	private volatile double gain;
+	private volatile double tempo;
 	
 	public Player(AudioProcessor beforeWSOLAProcessor,AudioProcessor afterWSOLAProcessor){
 		state = PlayerState.NO_FILE_LOADED;
@@ -78,7 +78,10 @@ public class Player implements AudioProcessor {
 		this.afterWSOLAProcessor = afterWSOLAProcessor;
 	}
 	
-
+    private Parameters currentPlayerParam(double tempo, double sampleRate)
+	{
+		return Parameters.musicDefaults(tempo, sampleRate);
+	}
 	
 	public void load(File file) {
 		if(state != PlayerState.NO_FILE_LOADED){
@@ -120,30 +123,44 @@ public class Player implements AudioProcessor {
 			try {
 				final AudioFileFormat fileFormat = AudioSystem.getAudioFileFormat(loadedFile);
 				final AudioFormat format = fileFormat.getFormat();
-				
+
 				gainProcessor = new GainProcessor(gain);
-				audioPlayer = new AudioPlayer(format);		
-				wsola = new WaveformSimilarityBasedOverlapAdd(Parameters.slowdownDefaults(tempo,format.getSampleRate()), format.getChannels());
-				
+
+				wsola = new WaveformSimilarityBasedOverlapAdd(currentPlayerParam(tempo,format.getSampleRate()), format.getChannels());
+
 				dispatcher = AudioDispatcherFactory.fromFile(loadedFile,wsola.getInputBufferSize(),wsola.getOverlap());
-				//dispatcher = AudioDispatcherFactory.fromFile(loadedFile,wsola.getInputBufferSize(), 0);
-				
+
 				wsola.setDispatcher(dispatcher);
 				dispatcher.skip(startTime);
-				
+
 				dispatcher.addAudioProcessor(this);
 				dispatcher.addAudioProcessor(beforeWSOLAProcessor);
 				dispatcher.addAudioProcessor(wsola);
 				dispatcher.addAudioProcessor(afterWSOLAProcessor);
 				dispatcher.addAudioProcessor(gainProcessor);
-				
-				
-				dispatcher.addAudioProcessor(audioPlayer);
 
-				audioThread = new Thread(dispatcher,"Audio Player Thread");
+
+				//dispatcher.addAudioProcessor(audioPlayer);
+				final Runnable dumb = ()->{
+					final AudioPlayer audioPlayer;
+					try
+					{
+						audioPlayer = new AudioPlayer(format);
+					} catch (LineUnavailableException e)
+					{
+						throw new Error(e);
+					}
+					dispatcher.addAudioProcessor(audioPlayer);
+					dispatcher.run();
+				};
+
+
+
+				//audioThread = new Thread(dispatcher,"Audio Player Thread");
+				audioThread = new Thread(dumb,"Audio Player Thread");
 				audioThread.start();
 				setState(PlayerState.PLAYING);
-			} catch (UnsupportedAudioFileException | IOException | LineUnavailableException e) {
+			} catch (UnsupportedAudioFileException | IOException e) {
 				throw new Error(e);
 			}
 		}
@@ -186,7 +203,7 @@ public class Player implements AudioProcessor {
 	public void setTempo(double newTempo){
 		tempo = newTempo;
 		if(state == PlayerState.PLAYING ){
-			wsola.setParameters(Parameters.slowdownDefaults(tempo,dispatcher.getFormat().getSampleRate()));
+			wsola.setParameters(currentPlayerParam(tempo, dispatcher.getFormat().getSampleRate()));
 		}
 	}
 	
