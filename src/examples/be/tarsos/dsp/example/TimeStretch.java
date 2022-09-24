@@ -194,7 +194,9 @@ public class TimeStretch extends JFrame{
 			gain = new GainProcessor(1.0);
 			audioPlayer = new AudioPlayer(format);
 			
-			wsola = new WaveformSimilarityBasedOverlapAdd(Parameters.slowdownDefaults(tempoSlider.getValue()/100.0,format.getSampleRate()));
+			wsola = new WaveformSimilarityBasedOverlapAdd(Parameters.slowdownDefaults(tempoSlider.getValue()/100.0,
+					format.getSampleRate()), format.getChannels());
+			
 			dispatcher = AudioDispatcherFactory.fromFile(inputFile,wsola.getInputBufferSize(),wsola.getOverlap());
 			wsola.setDispatcher(dispatcher);
 			dispatcher.addAudioProcessor(wsola);
