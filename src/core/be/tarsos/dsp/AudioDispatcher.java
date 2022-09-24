@@ -27,10 +27,8 @@ package be.tarsos.dsp;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -79,7 +77,8 @@ public class AudioDispatcher implements Runnable
      * A list of registered audio processors. The audio processors are
      * responsible for actually doing the digital signal processing
      */
-    private final List<AudioProcessor> audioProcessors = new CopyOnWriteArrayList<>();;
+    private final List<AudioProcessor> audioProcessors = new CopyOnWriteArrayList<>();
+    ;
 
     /**
      * Converter converts an array of floats to an array of bytes (and vice
@@ -94,7 +93,7 @@ public class AudioDispatcher implements Runnable
      * from the previous buffer. Overlap should be smaller (strict) than the
      * buffer size and can be zero. Defined in number of samples.
      */
-    private int floatOverlap = 0, floatStepSize = 0;
+    private int samplesOverlap = 0, samplesStepSize = 0;
 
     /**
      * The overlap and stepsize defined not in samples but in bytes. So it
@@ -163,7 +162,7 @@ public class AudioDispatcher implements Runnable
 
         audioEvent = new AudioEvent(format);
         audioEvent.setFloatBuffer(audioFloatBuffer);
-        audioEvent.setOverlap(bufferOverlap);
+        audioEvent.setOverlap(samplesOverlap);
 
         converter = TarsosDSPAudioFloatConverter.getConverter(format);
 
@@ -186,19 +185,19 @@ public class AudioDispatcher implements Runnable
      * processed, not during.
      *
      * @param audioBufferSize The size of the buffer defines how much samples are processed
-     *                        in one step. Common values are 1024,2048.
+     *                        in one step. Common values are 1024,2048. IN SAMPLES
      * @param bufferOverlap   How much consecutive buffers overlap (in samples). Half of the
      *                        AudioBufferSize is common (512, 1024) for an FFT.
      */
     public void setStepSizeAndOverlap(final int audioBufferSize, final int bufferOverlap)
     {
-        audioFloatBuffer = new float[audioBufferSize];
-        floatOverlap = bufferOverlap;
-        floatStepSize = audioFloatBuffer.length - floatOverlap;
+        audioFloatBuffer = new float[audioBufferSize * format.getChannels()];
+        samplesOverlap = bufferOverlap; // in samples
+        samplesStepSize = audioBufferSize - samplesOverlap; // in samples
 
-        audioByteBuffer = new byte[audioFloatBuffer.length * format.getFrameSize()];
-        byteOverlap = floatOverlap * format.getFrameSize();
-        byteStepSize = floatStepSize * format.getFrameSize();
+        audioByteBuffer = new byte[audioBufferSize * format.getFrameSize()];
+        byteOverlap = samplesOverlap * format.getFrameSize();
+        byteStepSize = samplesStepSize * format.getFrameSize();
     }
 
     /**
@@ -264,7 +263,7 @@ public class AudioDispatcher implements Runnable
                 LOG.warning(message);
                 throw new Error(message);
             }
-            audioEvent.setOverlap(floatOverlap);
+            audioEvent.setOverlap(samplesOverlap);
 
             return local_bytesRead;
         };
@@ -330,6 +329,13 @@ public class AudioDispatcher implements Runnable
         }
     }
 
+    private void samplescopy(float [] src, int src_off, float[] dst, int dst_off, int len)
+    {
+        final int channelsPerSample = format.getChannels();
+        System.arraycopy(src, src_off * channelsPerSample, dst,
+                dst_off * channelsPerSample, len * channelsPerSample);
+    }
+
     /**
      * Reads the next audio block. It tries to read the number of bytes defined
      * by the audio buffer size minus the overlap. If the expected number of
@@ -346,10 +352,10 @@ public class AudioDispatcher implements Runnable
      */
     private int readNextAudioBlock() throws IOException
     {
-        assert floatOverlap < audioFloatBuffer.length;
+        assert samplesOverlap < audioFloatBuffer.length;
 
         // Is this the first buffer?
-        boolean isFirstBuffer = (bytesProcessed == 0 || bytesProcessed == bytesToSkip);
+        final boolean isFirstBuffer = (bytesProcessed <= bytesToSkip);
 
         final int offsetInBytes;
 
@@ -370,18 +376,14 @@ public class AudioDispatcher implements Runnable
             //In all other cases read the amount of bytes defined by the step size
             bytesToRead = byteStepSize;
             offsetInBytes = byteOverlap;
-            offsetInSamples = floatOverlap;
+            offsetInSamples = samplesOverlap;
         }
 
         //Shift the audio information using array copy since it is probably faster than manually shifting it.
         // No need to do this on the first buffer
-        if (!isFirstBuffer && audioFloatBuffer.length == floatOverlap + floatStepSize)
+        if (!isFirstBuffer && audioFloatBuffer.length == (samplesOverlap + samplesStepSize) * format.getChannels())
         {
-            System.arraycopy(audioFloatBuffer, floatStepSize, audioFloatBuffer, 0, floatOverlap);
-			/*
-			for(int i = floatStepSize ; i < floatStepSize+floatOverlap ; i++){
-				audioFloatBuffer[i-floatStepSize] = audioFloatBuffer[i];
-			}*/
+            samplescopy(audioFloatBuffer, samplesStepSize, audioFloatBuffer, 0, samplesOverlap);
         }
 
         // Total amount of bytes read
@@ -426,7 +428,7 @@ public class AudioDispatcher implements Runnable
 //				for(int i = offsetInBytes + totalBytesRead; i < audioByteBuffer.length; i++){
 //					audioByteBuffer[i] = 0;
 //				}
-                converter.toFloatArray(audioByteBuffer, offsetInBytes, audioFloatBuffer, offsetInSamples, floatStepSize);
+                converter.toFloatArray(audioByteBuffer, offsetInBytes, audioFloatBuffer, offsetInSamples, samplesStepSize);
             } else
             {
                 // Send a smaller buffer through the chain.
@@ -445,7 +447,7 @@ public class AudioDispatcher implements Runnable
                 converter.toFloatArray(audioByteBuffer, 0, audioFloatBuffer, 0, audioFloatBuffer.length);
             } else
             {
-                converter.toFloatArray(audioByteBuffer, offsetInBytes, audioFloatBuffer, offsetInSamples, floatStepSize);
+                converter.toFloatArray(audioByteBuffer, offsetInBytes, audioFloatBuffer, offsetInSamples, samplesStepSize);
             }
         } else if (!stopped.get())
         {
@@ -472,7 +474,7 @@ public class AudioDispatcher implements Runnable
      */
     public float secondsProcessed()
     {
-        return bytesProcessed / (format.getSampleSizeInBits() / 8) / format.getSampleRate() / format.getChannels();
+        return (float)bytesProcessed / (format.getSampleSizeInBits() / 8.f) / format.getSampleRate() / format.getChannels();
     }
 
     public void setAudioFloatBuffer(float[] audioBuffer)

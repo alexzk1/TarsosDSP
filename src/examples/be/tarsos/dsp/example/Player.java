@@ -118,14 +118,15 @@ public class Player implements AudioProcessor {
 			throw new IllegalStateException("Can not play when no file is loaded");
 		} else {
 			try {
-				AudioFileFormat fileFormat = AudioSystem.getAudioFileFormat(loadedFile);
-				AudioFormat format = fileFormat.getFormat();
+				final AudioFileFormat fileFormat = AudioSystem.getAudioFileFormat(loadedFile);
+				final AudioFormat format = fileFormat.getFormat();
 				
 				gainProcessor = new GainProcessor(gain);
 				audioPlayer = new AudioPlayer(format);		
-				wsola = new WaveformSimilarityBasedOverlapAdd(Parameters.slowdownDefaults(tempo,format.getSampleRate()));
+				wsola = new WaveformSimilarityBasedOverlapAdd(Parameters.slowdownDefaults(tempo,format.getSampleRate()), format.getChannels());
 				
 				dispatcher = AudioDispatcherFactory.fromFile(loadedFile,wsola.getInputBufferSize(),wsola.getOverlap());
+				//dispatcher = AudioDispatcherFactory.fromFile(loadedFile,wsola.getInputBufferSize(), 0);
 				
 				wsola.setDispatcher(dispatcher);
 				dispatcher.skip(startTime);

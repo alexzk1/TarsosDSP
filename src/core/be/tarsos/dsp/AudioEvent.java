@@ -80,7 +80,12 @@ public class AudioEvent {
 	public float getSampleRate(){
 		return format.getSampleRate();
 	}
-	
+
+	public int getChannelsPerSample()
+	{
+		return format.getChannels();
+	}
+
 	public int getBufferSize(){
 		return getFloatBuffer().length;
 	}
