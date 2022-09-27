@@ -73,7 +73,7 @@ public class ImpulseDetection {
 		normalize(part);
 		
 		float factor =  data.length/(float)part.length;
-		Resampler r= new Resampler(false,factor,factor);
+		Resampler r= new Resampler(false,factor,factor, 1);
 		float[] out = new float[(int) (part.length * factor)];
 		r.process(factor, part, 0, part.length, false, out, 0, out.length);
 		

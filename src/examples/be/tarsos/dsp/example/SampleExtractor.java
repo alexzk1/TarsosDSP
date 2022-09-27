@@ -216,7 +216,7 @@ public class SampleExtractor  extends JFrame {
 							AudioPlayer audioPlayer;
 							RateTransposer rateTransposer;
 							rateTransposer = new RateTransposer(pitchFactor);
-							wsola = new WaveformSimilarityBasedOverlapAdd(Parameters.musicDefaults(durationFactor,sampleRate));
+							wsola = new WaveformSimilarityBasedOverlapAdd(Parameters.musicDefaults(durationFactor,sampleRate), format.getChannels());
 							AudioDispatcher dispatcher = AudioDispatcherFactory.fromFile(file,wsola.getInputBufferSize(), wsola.getOverlap());
 							audioPlayer = new AudioPlayer(format);
 							wsola.setDispatcher(dispatcher);

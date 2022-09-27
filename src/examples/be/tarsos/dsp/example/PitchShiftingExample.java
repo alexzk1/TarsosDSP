@@ -92,42 +92,48 @@ public class PitchShiftingExample extends JFrame {
 	private final JSlider gainSlider;
 	private final JCheckBox originalTempoCheckBox;
 	private final JSpinner centsSpinner;
-	
-	
-	
-	private ChangeListener parameterSettingChangedListener = new ChangeListener(){
-@Override
-		public void stateChanged(ChangeEvent arg0) {
-			if (arg0.getSource() instanceof JSpinner) {
-				int centValue = Integer.valueOf(((JSpinner) arg0.getSource())
-						.getValue().toString());
-				currentFactor = centToFactor(centValue);
-				factorSlider.removeChangeListener(this);
-				factorSlider.setValue((int) Math.round(currentFactor * 100));
-				factorSlider.addChangeListener(this);
-			} else if (arg0.getSource() instanceof JSlider) {
-				currentFactor = factorSlider.getValue() / 100.0;
-				centsSpinner.removeChangeListener(this);
-				centsSpinner.setValue(factorToCents(currentFactor));
-				centsSpinner.addChangeListener(this);
-			}
-			factorLabel.setText("Factor " + Math.round(currentFactor * 100) + "%");
-			if (PitchShiftingExample.this.dispatcher != null) {				 
-				 if(originalTempoCheckBox.getModel().isSelected()){
-					 wsola.setParameters(WaveformSimilarityBasedOverlapAdd.Parameters.musicDefaults(currentFactor, sampleRate));
-				 } else {
-					 wsola.setParameters(WaveformSimilarityBasedOverlapAdd.Parameters.musicDefaults(1, sampleRate));
-				 }
-				 rateTransposer.setFactor(currentFactor);
-			 }
-		}}; 
-		
+
+
 	public PitchShiftingExample(){
 		this.setLayout(new BorderLayout());
 		this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		this.setTitle("Pitch shifting: change the pitch of your audio.");
 		
 		originalTempoCheckBox = new JCheckBox("Keep original tempo?", true);
+		final ChangeListener parameterSettingChangedListener = new ChangeListener()
+		{
+			@Override
+			public void stateChanged(ChangeEvent arg0)
+			{
+				if (arg0.getSource() instanceof JSpinner)
+				{
+					int centValue = Integer.parseInt(((JSpinner) arg0.getSource())
+							.getValue().toString());
+					currentFactor = centToFactor(centValue);
+					factorSlider.removeChangeListener(this);
+					factorSlider.setValue((int) Math.round(currentFactor * 100));
+					factorSlider.addChangeListener(this);
+				} else if (arg0.getSource() instanceof JSlider)
+				{
+					currentFactor = factorSlider.getValue() / 100.0;
+					centsSpinner.removeChangeListener(this);
+					centsSpinner.setValue(factorToCents(currentFactor));
+					centsSpinner.addChangeListener(this);
+				}
+				factorLabel.setText("Factor " + Math.round(currentFactor * 100) + "%");
+				if (PitchShiftingExample.this.dispatcher != null)
+				{
+					if (originalTempoCheckBox.getModel().isSelected())
+					{
+						wsola.setParameters(Parameters.musicDefaults(currentFactor, sampleRate));
+					} else
+					{
+						wsola.setParameters(Parameters.musicDefaults(1, sampleRate));
+					}
+					rateTransposer.setFactor(currentFactor);
+				}
+			}
+		};
 		originalTempoCheckBox.addChangeListener(parameterSettingChangedListener);
 		
 		this.loop = false;
@@ -191,12 +197,7 @@ public class PitchShiftingExample extends JFrame {
 		params.setBorder(new TitledBorder("2. Set the algorithm parameters"));
 		
 		JCheckBox loopCheckbox = new JCheckBox(("Loop sample?"));
-		loopCheckbox.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				loop = ((JCheckBox)e.getSource()).isSelected();
-			}
-		});
+		loopCheckbox.addActionListener(e -> loop = ((JCheckBox)e.getSource()).isSelected());
 		
 		JLabel label = new JLabel("Factor 100%");
 		label.setToolTipText("The pitch shift factor in % (100 is no change, 50 is double pitch, 200 half).");
@@ -263,9 +264,9 @@ public class PitchShiftingExample extends JFrame {
 			
 			//can not time travel, unfortunately. It would be nice to go back and kill Hitler or something...
 			 if(originalTempoCheckBox.getModel().isSelected() && inputFile != null){
-				 wsola = new WaveformSimilarityBasedOverlapAdd(Parameters.musicDefaults(currentFactor, sampleRate));
+				 wsola = new WaveformSimilarityBasedOverlapAdd(Parameters.musicDefaults(currentFactor, sampleRate), format.getChannels());
 			 } else {
-				 wsola = new WaveformSimilarityBasedOverlapAdd(Parameters.musicDefaults(1, sampleRate));
+				 wsola = new WaveformSimilarityBasedOverlapAdd(Parameters.musicDefaults(1, sampleRate), format.getChannels());
 			 }
 			 if(inputFile == null){
 				 DataLine.Info dataLineInfo = new DataLine.Info(TargetDataLine.class, format);
@@ -278,13 +279,13 @@ public class PitchShiftingExample extends JFrame {
 					// create a new dispatcher
 					dispatcher = new AudioDispatcher(audioStream, wsola.getInputBufferSize(),wsola.getOverlap()); 
 			 }else{
-					if(format.getChannels() != 1){
-						dispatcher = AudioDispatcherFactory.fromFile(inputFile,wsola.getInputBufferSize() * format.getChannels(),wsola.getOverlap() * format.getChannels());
-						dispatcher.addAudioProcessor(new MultichannelToMono(format.getChannels(),true));
-					}else{
-						dispatcher = AudioDispatcherFactory.fromFile(inputFile,wsola.getInputBufferSize(),wsola.getOverlap());
-					}
-				 //dispatcher = AudioDispatcher.fromFile(inputFile,wsola.getInputBufferSize(),wsola.getOverlap());
+//					if(format.getChannels() != 1){
+//						dispatcher = AudioDispatcherFactory.fromFile(inputFile,wsola.getInputBufferSize() * format.getChannels(),wsola.getOverlap() * format.getChannels());
+//						dispatcher.addAudioProcessor(new MultichannelToMono(format.getChannels(),true));
+//					}else{
+						//dispatcher = AudioDispatcherFactory.fromFile(inputFile,wsola.getInputBufferSize(),wsola.getOverlap());
+					//}
+				 dispatcher = AudioDispatcherFactory.fromFile(inputFile,wsola.getInputBufferSize(),wsola.getOverlap());
 			 }
 			wsola.setDispatcher(dispatcher);
 			dispatcher.addAudioProcessor(wsola);
@@ -372,15 +373,16 @@ public class PitchShiftingExample extends JFrame {
 		double sampleRate = format.getSampleRate();
 		double factor = PitchShiftingExample.centToFactor(cents);
 		RateTransposer rateTransposer = new RateTransposer(factor);
-		WaveformSimilarityBasedOverlapAdd wsola = new WaveformSimilarityBasedOverlapAdd(Parameters.musicDefaults(factor, sampleRate));
+		WaveformSimilarityBasedOverlapAdd wsola =
+				new WaveformSimilarityBasedOverlapAdd(Parameters.musicDefaults(factor, sampleRate), 1);
 		WaveformWriter writer = new WaveformWriter(format,target);
 		AudioDispatcher dispatcher;
-		if(format.getChannels() != 1){
-			dispatcher = AudioDispatcherFactory.fromFile(inputFile,wsola.getInputBufferSize() * format.getChannels(),wsola.getOverlap() * format.getChannels());
-			dispatcher.addAudioProcessor(new MultichannelToMono(format.getChannels(),true));
-		}else{
+//		if(format.getChannels() != 1){
+//			dispatcher = AudioDispatcherFactory.fromFile(inputFile,wsola.getInputBufferSize() * format.getChannels(),wsola.getOverlap() * format.getChannels());
+//			dispatcher.addAudioProcessor(new MultichannelToMono(format.getChannels(),true));
+//		}else{
 			dispatcher = AudioDispatcherFactory.fromFile(inputFile,wsola.getInputBufferSize(),wsola.getOverlap());
-		}
+		//}
 		wsola.setDispatcher(dispatcher);
 		dispatcher.addAudioProcessor(wsola);
 		dispatcher.addAudioProcessor(rateTransposer);

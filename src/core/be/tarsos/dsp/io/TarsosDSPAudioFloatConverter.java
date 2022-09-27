@@ -394,9 +394,8 @@ public abstract class TarsosDSPAudioFloatConverter {
         public float[] toFloatArray(byte[] in_buff, int in_offset,
                 float[] out_buff, int out_offset, int out_len) {
             int ix = in_offset;
-            int len = out_offset + out_len;
-            for (int ox = out_offset; ox < len; ox++) {
-                out_buff[ox] = ((short) ((in_buff[ix++] & 0xFF) | 
+            for (int ox = 0; ox < out_len; ++ox) {
+                out_buff[ox + out_offset] = ((short) ((in_buff[ix++] & 0xFF) |
                            (in_buff[ix++] << 8))) * (1.0f / 32767.0f);
             }
 

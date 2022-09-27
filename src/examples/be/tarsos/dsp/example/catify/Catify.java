@@ -210,7 +210,7 @@ public class Catify {
 			WaveformSimilarityBasedOverlapAdd wsola;
 			RateTransposer rateTransposer;
 			rateTransposer = new RateTransposer(pitchFactor);
-			wsola = new WaveformSimilarityBasedOverlapAdd(Parameters.musicDefaults(durationFactor,sampleRate));
+			wsola = new WaveformSimilarityBasedOverlapAdd(Parameters.musicDefaults(durationFactor,sampleRate), 1);
 			final AudioDispatcher dispatcher = AudioDispatcherFactory.fromFile(cs.getFile(),wsola.getInputBufferSize(), wsola.getOverlap());
 			wsola.setDispatcher(dispatcher);
 			dispatcher.addAudioProcessor(new GainProcessor(gain));

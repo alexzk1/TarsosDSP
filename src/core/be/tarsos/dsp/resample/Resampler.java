@@ -1,25 +1,25 @@
 /*
-*      _______                       _____   _____ _____  
-*     |__   __|                     |  __ \ / ____|  __ \ 
-*        | | __ _ _ __ ___  ___  ___| |  | | (___ | |__) |
-*        | |/ _` | '__/ __|/ _ \/ __| |  | |\___ \|  ___/ 
-*        | | (_| | |  \__ \ (_) \__ \ |__| |____) | |     
-*        |_|\__,_|_|  |___/\___/|___/_____/|_____/|_|     
-*                                                         
-* -------------------------------------------------------------
-*
-* TarsosDSP is developed by Joren Six at IPEM, University Ghent
-*  
-* -------------------------------------------------------------
-*
-*  Info: http://0110.be/tag/TarsosDSP
-*  Github: https://github.com/JorenSix/TarsosDSP
-*  Releases: http://0110.be/releases/TarsosDSP/
-*  
-*  TarsosDSP includes modified source code by various authors,
-*  for credits and info, see README.
-* 
-*/
+ *      _______                       _____   _____ _____
+ *     |__   __|                     |  __ \ / ____|  __ \
+ *        | | __ _ _ __ ___  ___  ___| |  | | (___ | |__) |
+ *        | |/ _` | '__/ __|/ _ \/ __| |  | |\___ \|  ___/
+ *        | | (_| | |  \__ \ (_) \__ \ |__| |____) | |
+ *        |_|\__,_|_|  |___/\___/|___/_____/|_____/|_|
+ *
+ * -------------------------------------------------------------
+ *
+ * TarsosDSP is developed by Joren Six at IPEM, University Ghent
+ *
+ * -------------------------------------------------------------
+ *
+ *  Info: http://0110.be/tag/TarsosDSP
+ *  Github: https://github.com/JorenSix/TarsosDSP
+ *  Releases: http://0110.be/releases/TarsosDSP/
+ *
+ *  TarsosDSP includes modified source code by various authors,
+ *  for credits and info, see README.
+ *
+ */
 
 /******************************************************************************
  *
@@ -35,15 +35,22 @@
  *****************************************************************************/
 package be.tarsos.dsp.resample;
 
+import be.tarsos.dsp.util.SamplesMath;
+
 import java.nio.FloatBuffer;
+import java.util.Arrays;
+import java.util.function.Consumer;
 
-public class Resampler {
+public class Resampler
+{
 
-    public static class Result {
+    public static class Result
+    {
         public final int inputSamplesConsumed;
         public final int outputSamplesGenerated;
 
-        public Result(int inputSamplesConsumed, int outputSamplesGenerated) {
+        public Result(int inputSamplesConsumed, int outputSamplesGenerated)
+        {
             this.inputSamplesConsumed = inputSamplesConsumed;
             this.outputSamplesGenerated = outputSamplesGenerated;
         }
@@ -68,12 +75,15 @@ public class Resampler {
     private int Yp;
     private double Time;
 
+    private final SamplesMath samplesMath;
+
     /**
      * Clone an existing resampling session. Faster than creating one from scratch.
      *
      * @param other
      */
-    public Resampler(Resampler other) {
+    public Resampler(Resampler other)
+    {
         this.Imp = other.Imp.clone();
         this.ImpD = other.ImpD.clone();
         this.LpScl = other.LpScl;
@@ -89,6 +99,12 @@ public class Resampler {
         this.Y = other.Y.clone();
         this.Yp = other.Yp;
         this.Time = other.Time;
+        this.samplesMath = other.samplesMath;
+    }
+
+    public Resampler(boolean highQuality, double minFactor, double maxFactor, final int channelsPerSample)
+    {
+        this(highQuality, minFactor, maxFactor, new SamplesMath(channelsPerSample));
     }
 
     /**
@@ -100,13 +116,17 @@ public class Resampler {
      * @throws IllegalArgumentException if minFactor or maxFactor is not
      *                                  positive, or if maxFactor is less than minFactor
      */
-    public Resampler(boolean highQuality, double minFactor, double maxFactor) {
-        if (minFactor <= 0.0 || maxFactor <= 0.0) {
+    public Resampler(boolean highQuality, double minFactor, double maxFactor, final SamplesMath samplesMath)
+    {
+        if (minFactor <= 0.0 || maxFactor <= 0.0)
+        {
             throw new IllegalArgumentException("minFactor and maxFactor must be positive");
         }
-        if (maxFactor < minFactor) {
+        if (maxFactor < minFactor)
+        {
             throw new IllegalArgumentException("minFactor must be <= maxFactor");
         }
+        this.samplesMath = samplesMath;
 
         this.minFactor = minFactor;
         this.maxFactor = maxFactor;
@@ -123,13 +143,15 @@ public class Resampler {
         this.Imp = new float[this.Nwing];
         this.ImpD = new float[this.Nwing];
 
-        for (int i = 0; i < this.Nwing; i++) {
+        for (int i = 0; i < this.Nwing; i++)
+        {
             this.Imp[i] = (float) Imp64[i];
         }
 
         // Storing deltas in ImpD makes linear interpolation
         // of the filter coefficients faster
-        for (int i = 0; i < this.Nwing - 1; i++) {
+        for (int i = 0; i < this.Nwing - 1; i++)
+        {
             this.ImpD[i] = this.Imp[i + 1] - this.Imp[i];
         }
 
@@ -147,20 +169,21 @@ public class Resampler {
         // we can zero-pad up to Xoff zeros at the end when we reach the
         // end of the input samples.
         this.XSize = Math.max(2 * this.Xoff + 10, 4096);
-        this.X = new float[this.XSize + this.Xoff];
+        this.X = new float[samplesMath.sampleToArrayIndex(this.XSize + this.Xoff)];
         this.Xp = this.Xoff;
         this.Xread = this.Xoff;
 
         // Make the outBuffer long enough to hold the entire processed
         // output of one inBuffer
         int YSize = (int) (((double) this.XSize) * maxFactor + 2.0);
-        this.Y = new float[YSize];
+        this.Y = new float[samplesMath.sampleToArrayIndex(YSize)];
         this.Yp = 0;
 
         this.Time = (double) this.Xoff; // Current-time pointer for converter
     }
 
-    public int getFilterWidth() {
+    public int getFilterWidth()
+    {
         return this.Xoff;
     }
 
@@ -172,160 +195,139 @@ public class Resampler {
      * @param lastBatch true if this is known to be the last batch of samples
      * @return true iff resampling is complete (ie. no input samples consumed and no output samples produced)
      */
-    public boolean process(double factor, SampleBuffers buffers, boolean lastBatch) {
-        if (factor < this.minFactor || factor > this.maxFactor) {
+    public boolean process(final double factor, final SampleBuffers buffers, final boolean lastBatch)
+    {
+        //todo: TRUE means interpolate filter coeffs
+        final boolean interpFilt = false;
+        //final boolean interpFilt = true;
+
+        if (factor < this.minFactor || factor > this.maxFactor)
+        {
             throw new IllegalArgumentException("factor " + factor + " is not between minFactor=" + minFactor
                     + " and maxFactor=" + maxFactor);
         }
 
-        int outBufferLen = buffers.getOutputBufferLength();
-        int inBufferLen = buffers.getInputBufferLength();
+        final int outBufferSamplesCount = buffers.getOutputBufferLength();
+        final int inBufferSamplesCount = buffers.getInputBufferLength();
 
         float[] Imp = this.Imp;
         float[] ImpD = this.ImpD;
         float LpScl = this.LpScl;
         int Nwing = this.Nwing;
-        boolean interpFilt = false; // TRUE means interpolate filter coeffs
+
 
         int inBufferUsed = 0;
         int outSampleCount = 0;
 
+        final Consumer<Integer> YpShift = (len) -> {
+            //            for (int i = 0; i < this.Yp - len; i++) {
+            //                this.Y[i] = this.Y[i + len];
+            //            }
+            // this.Yp -= len;
+            samplesMath.samplesCopy(this.Y, len, this.Y, 0, this.Yp - len);
+            this.Yp -= len;
+        };
+
         // Start by copying any samples still in the Y buffer to the output
         // buffer
-        if ((this.Yp != 0) && (outBufferLen - outSampleCount) > 0) {
-            int len = Math.min(outBufferLen - outSampleCount, this.Yp);
-
-            buffers.consumeOutput(this.Y, 0, len);
-            //for (int i = 0; i < len; i++) {
-            //    outBuffer[outBufferOffset + outSampleCount + i] = this.Y[i];
-            //}
-
-            outSampleCount += len;
-            for (int i = 0; i < this.Yp - len; i++) {
-                this.Y[i] = this.Y[i + len];
-            }
-            this.Yp -= len;
+        if (this.Yp > 0 && (outBufferSamplesCount - outSampleCount) > 0)
+        {
+            final int samplesCount = Math.min(outBufferSamplesCount - outSampleCount, this.Yp);
+            buffers.consumeOutput(this.Y, 0, samplesCount);
+            outSampleCount += samplesCount;
+            YpShift.accept(samplesCount);
         }
 
         // If there are still output samples left, return now - we need
         // the full output buffer available to us...
-        if (this.Yp != 0) {
+        if (this.Yp > 0)
+        {
             return inBufferUsed == 0 && outSampleCount == 0;
         }
 
         // Account for increased filter gain when using factors less than 1
-        if (factor < 1) {
+        if (factor < 1)
+        {
             LpScl = (float) (LpScl * factor);
         }
 
-        while (true) {
-
+        while (true)
+        {
             // This is the maximum number of samples we can process
             // per loop iteration
-
-            /*
-             * #ifdef DEBUG
-             * printf("XSize: %d Xoff: %d Xread: %d Xp: %d lastFlag: %d\n",
-             * this.XSize, this.Xoff, this.Xread, this.Xp, lastFlag); #endif
-             */
-
             // Copy as many samples as we can from the input buffer into X
-            int len = this.XSize - this.Xread;
-
-            if (len >= inBufferLen - inBufferUsed) {
-                len = inBufferLen - inBufferUsed;
+            {
+                final int samplesCount = Math.min(inBufferSamplesCount - inBufferUsed, this.XSize - this.Xread);
+                buffers.produceInput(this.X, this.Xread, samplesCount);
+                inBufferUsed += samplesCount;
+                this.Xread += samplesCount;
             }
 
-            buffers.produceInput(this.X, this.Xread, len);
-            //for (int i = 0; i < len; i++) {
-            //    this.X[this.Xread + i] = inBuffer[inBufferOffset + inBufferUsed + i];
-            //}
-
-            inBufferUsed += len;
-            this.Xread += len;
-
             int Nx;
-            if (lastBatch && (inBufferUsed == inBufferLen)) {
+            if (lastBatch && (inBufferUsed == inBufferSamplesCount))
+            {
                 // If these are the last samples, zero-pad the
                 // end of the input buffer and make sure we process
                 // all the way to the end
                 Nx = this.Xread - this.Xoff;
-                for (int i = 0; i < this.Xoff; i++) {
-                    this.X[this.Xread + i] = 0;
-                }
-            } else {
+//                for (int i = 0; i < this.Xoff; i++)
+//                {
+//                    this.X[this.Xread + i] = 0;
+//                }
+                samplesMath.samplesSet(X, Xread, Xoff, 0);
+            } else
+            {
                 Nx = this.Xread - 2 * this.Xoff;
             }
 
-            /*
-             * #ifdef DEBUG fprintf(stderr, "new len=%d Nx=%d\n", len, Nx);
-             * #endif
-             */
-
-            if (Nx <= 0) {
+            if (Nx <= 0)
+            {
                 break;
             }
 
             // Resample stuff in input buffer
             int Nout;
-            if (factor >= 1) { // SrcUp() is faster if we can use it */
+            if (factor >= 1)
+            { // SrcUp() is faster if we can use it */
                 Nout = lrsSrcUp(this.X, this.Y, factor, /* &this.Time, */Nx, Nwing, LpScl, Imp, ImpD, interpFilt);
-            } else {
+            } else
+            {
                 Nout = lrsSrcUD(this.X, this.Y, factor, /* &this.Time, */Nx, Nwing, LpScl, Imp, ImpD, interpFilt);
             }
-
-            /*
-             * #ifdef DEBUG
-             * printf("Nout: %d\n", Nout);
-             * #endif
-             */
 
             this.Time -= Nx; // Move converter Nx samples back in time
             this.Xp += Nx; // Advance by number of samples processed
 
             // Calc time accumulation in Time
-            int Ncreep = (int) (this.Time) - this.Xoff;
-            if (Ncreep != 0) {
-                this.Time -= Ncreep; // Remove time accumulation
-                this.Xp += Ncreep; // and add it to read pointer
-            }
+            final int Ncreep = (int) (this.Time) - this.Xoff;
+            this.Time -= Ncreep; // Remove time accumulation
+            this.Xp += Ncreep; // and add it to read pointer
 
             // Copy part of input signal that must be re-used
-            int Nreuse = this.Xread - (this.Xp - this.Xoff);
-
-            for (int i = 0; i < Nreuse; i++) {
-                this.X[i] = this.X[i + (this.Xp - this.Xoff)];
-            }
-
-            /*
-            #ifdef DEBUG
-            printf("New Xread=%d\n", Nreuse);
-            #endif */
-
+            final int Nreuse = this.Xread - (this.Xp - this.Xoff);
+//            for (int i = 0; i < Nreuse; ++i)
+//            {
+//                this.X[i] = this.X[i + (this.Xp - this.Xoff)];
+//            }
+            samplesMath.samplesCopy(X, Xp - Xoff, X, 0, Nreuse);
             this.Xread = Nreuse; // Pos in input buff to read new data into
             this.Xp = this.Xoff;
 
             this.Yp = Nout;
 
             // Copy as many samples as possible to the output buffer
-            if (this.Yp != 0 && (outBufferLen - outSampleCount) > 0) {
-                len = Math.min(outBufferLen - outSampleCount, this.Yp);
-
-                buffers.consumeOutput(this.Y, 0, len);
-                //for (int i = 0; i < len; i++) {
-                //    outBuffer[outBufferOffset + outSampleCount + i] = this.Y[i];
-                //}
-
-                outSampleCount += len;
-                for (int i = 0; i < this.Yp - len; i++) {
-                    this.Y[i] = this.Y[i + len];
-                }
-                this.Yp -= len;
+            if (this.Yp != 0 && (outBufferSamplesCount - outSampleCount) > 0)
+            {
+                final int samplesCount = Math.min(outBufferSamplesCount - outSampleCount, this.Yp);
+                buffers.consumeOutput(this.Y, 0, samplesCount);
+                outSampleCount += samplesCount;
+                YpShift.accept(samplesCount);
             }
 
             // If there are still output samples left, return now,
             //   since we need the full output buffer available
-            if (this.Yp != 0) {
+            if (this.Yp != 0)
+            {
                 break;
             }
         }
@@ -342,22 +344,30 @@ public class Resampler {
      * @param lastBatch    true if this is known to be the last batch of samples
      * @return true iff resampling is complete (ie. no input samples consumed and no output samples produced)
      */
-    public boolean process(double factor, final FloatBuffer inputBuffer, boolean lastBatch, final FloatBuffer outputBuffer) {
-        SampleBuffers sampleBuffers = new SampleBuffers() {
-            public int getInputBufferLength() {
-                return inputBuffer.remaining();
+    public boolean process(double factor, final FloatBuffer inputBuffer, boolean lastBatch, final FloatBuffer outputBuffer)
+    {
+        final SampleBuffers sampleBuffers = new SampleBuffers()
+        {
+            public int getInputBufferLength()
+            {
+                return samplesMath.arrayIndexToSample(inputBuffer.remaining());
             }
 
-            public int getOutputBufferLength() {
-                return outputBuffer.remaining();
+            public int getOutputBufferLength()
+            {
+                return samplesMath.arrayIndexToSample(outputBuffer.remaining());
             }
 
-            public void produceInput(float[] array, int offset, int length) {
-                inputBuffer.get(array, offset, length);
+            public void produceInput(float[] samples, int sample_index, int samples_count)
+            {
+                inputBuffer.get(samples, samplesMath.sampleToArrayIndex(sample_index),
+                        samplesMath.sampleToArrayIndex(samples_count));
             }
 
-            public void consumeOutput(float[] array, int offset, int length) {
-                outputBuffer.put(array, offset, length);
+            public void consumeOutput(float[] samples, int sample_index, int samples_count)
+            {
+                outputBuffer.put(samples, samplesMath.sampleToArrayIndex(sample_index),
+                        samplesMath.sampleToArrayIndex(samples_count));
             }
         };
         return process(factor, sampleBuffers, lastBatch);
@@ -366,17 +376,18 @@ public class Resampler {
     /**
      * Process a batch of samples. Alternative interface if you prefer to work with arrays.
      *
-     * @param factor         resampling rate for this batch
-     * @param inBuffer       array containing input samples in the range -1.0 to 1.0
-     * @param inBufferOffset offset into inBuffer at which to start processing
-     * @param inBufferLen    number of valid elements in the inputBuffer
-     * @param lastBatch      pass true if this is the last batch of samples
-     * @param outBuffer      array to hold the resampled data
+     * @param factor          resampling rate for this batch
+     * @param inBuffer        array containing input samples in the range -1.0 to 1.0
+     * @param inBufferOffset  offset into inBuffer at which to start processing
+     * @param inBufferLen     number of valid elements in the inputBuffer
+     * @param lastBatch       pass true if this is the last batch of samples
+     * @param outBuffer       array to hold the resampled data
      * @param outBufferOffset Offset in the output buffer.
      * @param outBufferLen    Output buffer length.
      * @return the number of samples consumed and generated
      */
-    public Result process(double factor, float[] inBuffer, int inBufferOffset, int inBufferLen, boolean lastBatch, float[] outBuffer, int outBufferOffset, int outBufferLen) {
+    public Result process(double factor, float[] inBuffer, int inBufferOffset, int inBufferLen, boolean lastBatch, float[] outBuffer, int outBufferOffset, int outBufferLen)
+    {
         FloatBuffer inputBuffer = FloatBuffer.wrap(inBuffer, inBufferOffset, inBufferLen);
         FloatBuffer outputBuffer = FloatBuffer.wrap(outBuffer, outBufferOffset, outBufferLen);
 
@@ -386,22 +397,13 @@ public class Resampler {
     }
 
 
-
     /*
      * Sampling rate up-conversion only subroutine; Slightly faster than
      * down-conversion;
      */
-    private int lrsSrcUp(float X[], float Y[], double factor, int Nx, int Nwing, float LpScl, float Imp[],
-                         float ImpD[], boolean Interp) {
-
-        float[] Xp_array = X;
-        int Xp_index;
-
-        float[] Yp_array = Y;
-        int Yp_index = 0;
-
-        float v;
-
+    private int lrsSrcUp(float[] X, float[] Y, double factor, int Nx, int Nwing, float LpScl, float[] Imp,
+                         float[] ImpD, boolean Interp)
+    {
         double CurrentTime = this.Time;
         double dt; // Step through input signal
         double endTime; // When Time reaches EndTime, return to user
@@ -409,19 +411,33 @@ public class Resampler {
         dt = 1.0 / factor; // Output sampling period
 
         endTime = CurrentTime + Nx;
-        while (CurrentTime < endTime) {
+
+        int Yp_index = 0;
+        final var rf = new FilterKit.FilterResult(samplesMath);
+        while (CurrentTime < endTime)
+        {
             double LeftPhase = CurrentTime - Math.floor(CurrentTime);
             double RightPhase = 1.0 - LeftPhase;
 
-            Xp_index = (int) CurrentTime; // Ptr to current input sample
+            int Xp_index = (int) CurrentTime; // Ptr to current input sample
             // Perform left-wing inner product
-            v = FilterKit.lrsFilterUp(Imp, ImpD, Nwing, Interp, Xp_array, Xp_index++, LeftPhase, -1);
+            rf.clear();
+
+            //v = FilterKit.lrsFilterUp(Imp, ImpD, Nwing, Interp, X, Xp_index++, LeftPhase, -1, channelsPerSample);
+            FilterKit.lrsFilterUp(Imp, ImpD, Nwing, Interp, X, Xp_index++, LeftPhase, -1, rf);
+
             // Perform right-wing inner product
-            v += FilterKit.lrsFilterUp(Imp, ImpD, Nwing, Interp, Xp_array, Xp_index, RightPhase, 1);
+            //v += FilterKit.lrsFilterUp(Imp, ImpD, Nwing, Interp, X, Xp_index, RightPhase, 1, channelsPerSample);
+            //do not clear here so it will add-up
+            FilterKit.lrsFilterUp(Imp, ImpD, Nwing, Interp, X, Xp_index, RightPhase, 1, rf);
 
-            v *= LpScl; // Normalize for unity filter gain
+            //v *= LpScl; // Normalize for unity filter gain
+            rf.mulR(LpScl);
 
-            Yp_array[Yp_index++] = v; // Deposit output
+            //sampleSet(Y, Yp_index++, v);
+            samplesMath.samplesCopy(rf.res, 0, Y, Yp_index++, 1);
+
+            //Y[Yp_index++] = v; // Deposit output
             CurrentTime += dt; // Move to next sample by time increment
         }
 
@@ -429,17 +445,9 @@ public class Resampler {
         return Yp_index; // Return the number of output samples
     }
 
-    private int lrsSrcUD(float X[], float Y[], double factor, int Nx, int Nwing, float LpScl, float Imp[],
-                         float ImpD[], boolean Interp) {
-
-        float[] Xp_array = X;
-        int Xp_index;
-
-        float[] Yp_array = Y;
-        int Yp_index = 0;
-
-        float v;
-
+    private int lrsSrcUD(float[] X, float[] Y, double factor, int Nx, int Nwing, float LpScl, float[] Imp,
+                         float[] ImpD, boolean Interp)
+    {
         double CurrentTime = this.Time;
         double dh; // Step through filter impulse response
         double dt; // Step through input signal
@@ -450,19 +458,30 @@ public class Resampler {
         dh = Math.min(Npc, factor * Npc); // Filter sampling period
 
         endTime = CurrentTime + Nx;
-        while (CurrentTime < endTime) {
-            double LeftPhase = CurrentTime - Math.floor(CurrentTime);
-            double RightPhase = 1.0 - LeftPhase;
 
-            Xp_index = (int) CurrentTime; // Ptr to current input sample
+        int Yp_index = 0;
+        final var rf = new FilterKit.FilterResult(samplesMath);
+        while (CurrentTime < endTime)
+        {
+            final double LeftPhase = CurrentTime - Math.floor(CurrentTime);
+            final double RightPhase = 1.0 - LeftPhase;
+
+            int Xp_index = (int) CurrentTime; // Ptr to current input sample
             // Perform left-wing inner product
-            v = FilterKit.lrsFilterUD(Imp, ImpD, Nwing, Interp, Xp_array, Xp_index++, LeftPhase, -1, dh);
+            //v = FilterKit.lrsFilterUD(Imp, ImpD, Nwing, Interp, Xp_array, Xp_index++, LeftPhase, -1, dh, channelsPerSample);
+            rf.clear();
+            FilterKit.lrsFilterUD(Imp, ImpD, Nwing, Interp, X, Xp_index++, LeftPhase, -1, dh, rf);
+
             // Perform right-wing inner product
-            v += FilterKit.lrsFilterUD(Imp, ImpD, Nwing, Interp, Xp_array, Xp_index, RightPhase, 1, dh);
+            //v += FilterKit.lrsFilterUD(Imp, ImpD, Nwing, Interp, Xp_array, Xp_index, RightPhase, 1, dh, channelsPerSample);
+            FilterKit.lrsFilterUD(Imp, ImpD, Nwing, Interp, X, Xp_index, RightPhase, 1, dh, rf);
 
-            v *= LpScl; // Normalize for unity filter gain
+            //v *= LpScl; // Normalize for unity filter gain
+            rf.mulR(LpScl);
 
-            Yp_array[Yp_index++] = v; // Deposit output
+            //Yp_array[Yp_index++] = v; // Deposit output
+            //sampleSet(Yp_array, Yp_index++, v);
+            samplesMath.samplesCopy(rf.res, 0, Y, Yp_index++, 1);
 
             CurrentTime += dt; // Move to next sample by time increment
         }

@@ -103,6 +103,9 @@ public class WaveformWriter implements AudioProcessor {
 	
 	@Override
 	public boolean process(AudioEvent audioEvent) {
+		//FIXME: this is broken, it assumes that audioEvent.getBufferSize() is samples count, but it is not
+		//it is amount of floats, for stereo it is x2 then samples count
+
 		this.byteOverlap = audioEvent.getOverlap() * format.getFrameSize();
 		this.byteStepSize = audioEvent.getBufferSize() * format.getFrameSize() - byteOverlap;
 		try {

@@ -43,7 +43,7 @@ public class RateTransposerTest {
 		float[] audioBuffer = TestUtilities.audioBufferSine();
 		double factor = 1.2;
 		int sampleRate = 44100;
-		WaveformSimilarityBasedOverlapAdd w = new WaveformSimilarityBasedOverlapAdd(WaveformSimilarityBasedOverlapAdd.Parameters.musicDefaults(1.2, sampleRate));
+		WaveformSimilarityBasedOverlapAdd w = new WaveformSimilarityBasedOverlapAdd(WaveformSimilarityBasedOverlapAdd.Parameters.musicDefaults(1.2, sampleRate), 1);
 		final AudioDispatcher d = AudioDispatcherFactory.fromFloatArray(audioBuffer, sampleRate, w.getInputBufferSize(),w.getOverlap());
 		AudioFormat f = new AudioFormat(sampleRate,16,1,true,false);
 		w.setDispatcher(d);
@@ -57,7 +57,7 @@ public class RateTransposerTest {
 	public void testTransposeFlute() throws LineUnavailableException, UnsupportedAudioFileException, IOException{
 		double factor = 1.2;
 		int sampleRate = 44100;
-		WaveformSimilarityBasedOverlapAdd w = new WaveformSimilarityBasedOverlapAdd(WaveformSimilarityBasedOverlapAdd.Parameters.musicDefaults(1.2, sampleRate));
+		WaveformSimilarityBasedOverlapAdd w = new WaveformSimilarityBasedOverlapAdd(WaveformSimilarityBasedOverlapAdd.Parameters.musicDefaults(1.2, sampleRate), 1);
 		AudioDispatcher d = AudioDispatcherFactory.fromFile(TestUtilities.fluteFile(),w.getInputBufferSize(),w.getOverlap());
 		AudioFormat f = new AudioFormat(sampleRate,16,1,true,false);
 		w.setDispatcher(d);

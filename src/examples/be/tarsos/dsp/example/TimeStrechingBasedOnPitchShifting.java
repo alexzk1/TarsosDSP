@@ -123,7 +123,7 @@ public class TimeStrechingBasedOnPitchShifting extends JFrame implements TarsosD
 		d.addAudioProcessor(pitchShifter);
 		
 		d.addAudioProcessor(new AudioProcessor() {
-			Resampler r= new Resampler(false,0.1,4.0);
+			Resampler r= new Resampler(false,0.1,4.0, 1);
 			@Override
 			public void processingFinished() {
 			}

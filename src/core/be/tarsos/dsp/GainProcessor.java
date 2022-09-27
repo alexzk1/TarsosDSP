@@ -55,7 +55,7 @@ public class GainProcessor implements AudioProcessor {
 	@Override
 	public boolean process(AudioEvent audioEvent) {
 		final float[] audioFloatBuffer = audioEvent.getFloatBuffer();
-		for (int i = audioEvent.getOverlap() * audioEvent.getChannelsPerSample(); i < audioFloatBuffer.length ; ++i) {
+		for (int i = audioEvent.getSamplesMath().sampleToArrayIndex(audioEvent.getOverlap()); i < audioFloatBuffer.length ; ++i) {
 			final float newValue = (float) (audioFloatBuffer[i] * gain);
 			audioFloatBuffer[i] = Math.max(-1.f, Math.min(1.f, newValue));
 		}

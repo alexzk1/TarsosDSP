@@ -196,7 +196,7 @@ public class TimeStretch extends JFrame{
 			
 			wsola = new WaveformSimilarityBasedOverlapAdd(Parameters.slowdownDefaults(tempoSlider.getValue()/100.0,
 					format.getSampleRate()), format.getChannels());
-			
+
 			dispatcher = AudioDispatcherFactory.fromFile(inputFile,wsola.getInputBufferSize(),wsola.getOverlap());
 			wsola.setDispatcher(dispatcher);
 			dispatcher.addAudioProcessor(wsola);
@@ -284,7 +284,8 @@ public class TimeStretch extends JFrame{
 	private static void startCli(String source,String target,double tempo) throws UnsupportedAudioFileException, IOException{
 		File inputFile = new File(source);
 		AudioFormat format = AudioSystem.getAudioFileFormat(inputFile).getFormat();	
-		WaveformSimilarityBasedOverlapAdd wsola = new WaveformSimilarityBasedOverlapAdd(Parameters.slowdownDefaults(tempo,format.getSampleRate()));
+		WaveformSimilarityBasedOverlapAdd wsola =
+				new WaveformSimilarityBasedOverlapAdd(Parameters.slowdownDefaults(tempo,format.getSampleRate()), format.getChannels());
 		WaveformWriter writer = new WaveformWriter(format,target);
 		AudioDispatcher dispatcher = AudioDispatcherFactory.fromFile(inputFile,wsola.getInputBufferSize(),wsola.getOverlap());
 		wsola.setDispatcher(dispatcher);

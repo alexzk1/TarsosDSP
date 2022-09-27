@@ -242,7 +242,7 @@ public class AudioDispatcherFactory {
 		TarsosDSPAudioInputStream audioStream = new JVMAudioInputStream(stream);
 		return new AudioDispatcher(audioStream, audioBufferSize, bufferOverlap);
 	}
-	
+
 	/**
 	 * Create a stream from an array of floats and use that to create a new
 	 * AudioDispatcher.

@@ -300,9 +300,9 @@ public class AdvancedAudioPlayer extends JFrame {
 
     AudioProcessor fftProcessor = new AudioProcessor() {
 
-        FFT fft;
-        int prevSize;
-        float[] amplitudes;
+        FFT fft = null;
+        int prevSize = 0;
+        float[] amplitudes = null;
 
         @Override
         public void processingFinished() {

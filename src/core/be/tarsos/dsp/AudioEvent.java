@@ -28,6 +28,7 @@ import java.util.Arrays;
 
 import be.tarsos.dsp.io.TarsosDSPAudioFloatConverter;
 import be.tarsos.dsp.io.TarsosDSPAudioFormat;
+import be.tarsos.dsp.util.SamplesMath;
 
 /**
  * An audio event flows through the processing pipeline. The object is reused for performance reasons.
@@ -39,6 +40,8 @@ public class AudioEvent {
 	/**
 	 * The format specifies a particular arrangement of data in a sound stream. 
 	 */
+	public float output2input_ratio = 1.f;
+
 	private final TarsosDSPAudioFormat format;
 	
 	private final TarsosDSPAudioFloatConverter converter;
@@ -70,22 +73,25 @@ public class AudioEvent {
 
 	private int bytesProcessing;
 	
-	
+	private final SamplesMath samplesMath;
+
 	public AudioEvent(TarsosDSPAudioFormat format){
 		this.format = format;
 		this.converter = TarsosDSPAudioFloatConverter.getConverter(format);
 		this.overlap = 0;
+		samplesMath = new SamplesMath(format.getChannels());
 	}
 	
 	public float getSampleRate(){
 		return format.getSampleRate();
 	}
 
-	public int getChannelsPerSample()
+	public final SamplesMath getSamplesMath()
 	{
-		return format.getChannels();
+		return samplesMath;
 	}
 
+	//warning!!! this is array size, not samples count!!
 	public int getBufferSize(){
 		return getFloatBuffer().length;
 	}
@@ -147,15 +153,26 @@ public class AudioEvent {
 	 * 
 	 * @return a byte array with the audio data in bytes.
 	 */
-	public byte[] getByteBuffer(){
-		int length = getFloatBuffer().length * format.getFrameSize();
+	public final byte[] getByteBuffer(){
+		final int length = getExpectedByteBufferSize();
 		if(byteBuffer == null || byteBuffer.length != length){
 			byteBuffer = new byte[length];
 		}
 		converter.toByteArray(getFloatBuffer(), byteBuffer);
 		return byteBuffer;
 	}
-	
+
+	public final int getExpectedByteBufferSize()
+	{
+		final int framesCount = getExpectedFramesCount();
+		return framesCount * format.getFrameSize();
+	}
+
+	public final int getExpectedFramesCount()
+	{
+		return samplesMath.arrayIndexToSample(getFloatBuffer().length);
+	}
+
 	public void setFloatBuffer(float[] floatBuffer) {
 		this.floatBuffer = floatBuffer;
 	}
@@ -195,10 +212,11 @@ public class AudioEvent {
 	 */
 	public static double calculateRMS(float[] floatBuffer){
 		double rms = 0.0;
-		for (int i = 0; i < floatBuffer.length; i++) {
-			rms += floatBuffer[i] * floatBuffer[i];
+		for (float v : floatBuffer)
+		{
+			rms += v * v;
 		}
-		rms = rms / Double.valueOf(floatBuffer.length);
+		rms = rms / (double) floatBuffer.length;
 		rms = Math.sqrt(rms);
 		return rms;
 	}

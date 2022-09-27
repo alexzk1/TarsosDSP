@@ -67,17 +67,17 @@ public final class AudioPlayer implements AudioProcessor {
 	 */
 	public AudioPlayer(final AudioFormat format)	throws LineUnavailableException {
 		final DataLine.Info info = new DataLine.Info(SourceDataLine.class,format);
-		this.format = format;
 		line = (SourceDataLine) AudioSystem.getLine(info);
 		line.open();
+		this.format = line.getFormat();
 		line.start();
 	}
 	
 	public AudioPlayer(final AudioFormat format, int bufferSize) throws LineUnavailableException {
 		final DataLine.Info info = new DataLine.Info(SourceDataLine.class,format,bufferSize);
-		this.format = format;
 		line = (SourceDataLine) AudioSystem.getLine(info);
 		line.open(format,bufferSize*2);
+		this.format = line.getFormat();
 		System.out.println("Buffer size:" + line.getBufferSize());
 		line.start();
 	}
@@ -92,26 +92,24 @@ public final class AudioPlayer implements AudioProcessor {
 	public long getMicroSecondPosition(){
 		return line.getMicrosecondPosition();
 	}
-	
+
+	public AudioFormat getFormat()
+	{
+		return format;
+	}
+
 	@Override
 	public boolean process(AudioEvent audioEvent) {
+		final byte[] data = audioEvent.getByteBuffer();
 		int byteOverlap = audioEvent.getOverlap() * format.getFrameSize();
-		int byteStepSize = audioEvent.getBufferSize() * format.getFrameSize() - byteOverlap;
+		int byteStepSize = data.length - byteOverlap;
 		if(audioEvent.getTimeStamp() == 0){
 			byteOverlap = 0;
-			byteStepSize = audioEvent.getBufferSize() * format.getFrameSize();
+			byteStepSize = data.length;
 		}
 		// overlap in samples * nr of bytes / sample = bytes overlap
-		
-		/*
-		if(byteStepSize < line.available()){
-			System.out.println(line.available() + " Will not block " + line.getMicrosecondPosition());
-		}else {
-			System.out.println("Will block " + line.getMicrosecondPosition());
-		}
-		*/
-		
-		int bytesWritten = line.write(audioEvent.getByteBuffer(), byteOverlap, byteStepSize);
+
+		int bytesWritten = line.write(data, byteOverlap, byteStepSize);
 		if(bytesWritten != byteStepSize){
 			System.err.println(String.format("Expected to write %d bytes but only wrote %d bytes",byteStepSize,bytesWritten));
 		}
