@@ -113,7 +113,7 @@ public class SamplesMath
         final float[] n = new float[sampleToArrayIndex(newSamplesCount)];
         if (oldSamples != null)
         {
-            final int size = Math.max(n.length, oldSamples.length);
+            final int size = Math.min(n.length, oldSamples.length);
             System.arraycopy(oldSamples, 0, n, 0, size);
         }
         return n;
